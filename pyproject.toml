@@ -1,0 +1,44 @@
+[tool.poetry]
+name = "gpt-app-learn"
+version = "0.1.0"
+description = ""
+authors = ["Atsushi Yoshida <aug7.a.yoshida@gmail.com>"]
+readme = "README.md"
+packages = [{include = "gpt_app_learn", from="src"}]
+
+
+[tool.poetry.dependencies]
+python = "^3.10"
+jupyterlab = "^4.1.2"
+matplotlib = "^3.8.3"
+seaborn = "^0.13.2"
+numpy = "^1.26.4"
+pandas = "^2.2.1"
+langchain = "^0.1.11"
+streamlit = "^1.31.1"
+openai = "^1.13.3"
+tiktoken = "^0.6.0"
+langchain-openai = "^0.0.8"
+
+[tool.poetry.group.dev.dependencies]
+black = "^24.2.0"
+flake8 = "^7.0.0"
+isort = "^5.13.2"
+jupyterlab-code-formatter = "^2.2.1"
+pytest = "^8.0.2"
+pre-commit = "^3.6.2"
+flake8-pyproject = "^1.2.3"
+
+[tool.flake8]
+max-line-length = 88
+extend-ignore = "E203,W503"
+
+[tool.black]
+line-length = 88
+
+[tool.isort]
+profile = "black"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
