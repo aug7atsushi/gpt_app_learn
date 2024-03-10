@@ -19,6 +19,11 @@ streamlit = "^1.31.1"
 openai = "^1.13.3"
 tiktoken = "^0.6.0"
 langchain-openai = "^0.0.8"
+youtube-transcript-api = "^0.6.2"
+pytube = "^15.0.0"
+pypdf2 = "^3.0.1"
+qdrant-client = "^1.8.0"
+pycryptodome = "^3.20.0"
 
 [tool.poetry.group.dev.dependencies]
 black = "^24.2.0"
