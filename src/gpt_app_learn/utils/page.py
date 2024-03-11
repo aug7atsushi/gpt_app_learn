@@ -3,7 +3,11 @@ from langchain.chains.summarize import load_summarize_chain
 from langchain.prompts import PromptTemplate
 from langchain.schema import HumanMessage, SystemMessage
 from langchain_community.callbacks import get_openai_callback
+from langchain_community.llms.openai import OpenAI
 from langchain_openai import ChatOpenAI
+
+from gpt_app_learn.utils.pdf import PDFRetriever
+from gpt_app_learn.utils.qdrant import QdrantVectorStore
 
 
 class PageContentBase:
@@ -106,7 +110,8 @@ class YoutubeSummaryContent(PageContentBase):
 
     @staticmethod
     def get_prompt():
-        return """Write a concise Japanese summary of the following transcript of Youtube Video.
+        return """Write a concise Japanese summary of the following transcript
+        of Youtube Video.
         ============
 
         {text}
@@ -156,7 +161,8 @@ class LongYoutubeSummaryContent(YoutubeSummaryContent):
 
     @staticmethod
     def get_prompt():
-        return """Write a concise Japanese summary of the following transcript of Youtube Video.
+        return """Write a concise Japanese summary of the following transcript
+        of Youtube Video.
 
         {text}
 
@@ -176,3 +182,102 @@ class LongYoutubeSummaryContent(YoutubeSummaryContent):
             )
         response = chain({"input_documents": content}, return_only_outputs=True)
         return response["output_text"], cb.total_cost
+
+
+class PDFQAContent(PageContentBase):
+    def __init__(self, qdrant_root: str, collection_name: str) -> None:
+        super(PDFQAContent, self).__init__()
+        self.qdrant_root = qdrant_root
+        self.collection_name = collection_name
+
+    def select_model(self, n_token_instruction: int = 300) -> None:
+        """モデルの選択"""
+        model = st.sidebar.radio("Choose a model:", ("GPT-3.5", "GPT-3.5-16k", "GPT-4"))
+        if model == "GPT-3.5":
+            self.session_state.model_name = "gpt-3.5-turbo"
+        elif model == "GPT-3.5":
+            self.session_state.model_name = "gpt-3.5-turbo-16k"
+        else:
+            self.session_state.model_name = "gpt-4"
+
+        # NOTE: 本文以外の指示のトークン数を差し引く
+        self.session_state.max_token = (
+            OpenAI.modelname_to_contextsize(self.session_state.model_name)
+            - n_token_instruction
+        )
+
+        # スライダーを追加し、temperatureを0から2までの範囲で選択可能にする
+        # 初期値は0.0、刻み幅は0.01とする
+        temperature = st.sidebar.slider(
+            "Temperature:", min_value=0.0, max_value=2.0, value=0.0, step=0.01
+        )
+        self.llm = ChatOpenAI(
+            temperature=temperature, model_name=self.session_state.model_name
+        )
+
+    def get_answer(self, qa, query):
+        with get_openai_callback() as cb:
+            # query / result / source_documents
+            answer = qa(query)
+
+        return answer, cb.total_cost
+
+    def prompt2answer(self, vector_store):
+        query = st.text_input("Query: ", key="input")
+
+        answer = None
+        if query:
+            # QAモデルを取得
+            qa = vector_store.get_qa_model(self.llm)
+            # QAモデルの回答を取得
+            if qa:
+                with st.spinner("ChatGPT is typing ..."):
+                    answer, cost = self.get_answer(qa, query)
+                st.session_state.costs.append(cost)
+            print(answer, cost)
+        return answer
+
+    def print_answer(self, answer):
+        st.markdown("## Answer")
+        st.write(answer)
+
+    def switch_page(self) -> None:
+        """ページの切り替え"""
+        selection = st.sidebar.radio("Go to", ["PDF Upload", "Ask My PDF(s)"])
+        if selection == "PDF Upload":
+            self.page_pdf_upload_and_build_vector_db()
+        elif selection == "Ask My PDF(s)":
+            self.page_ask_my_pdf()
+
+    def page_pdf_upload_and_build_vector_db(self):
+        """PDFをアップロード&ベクトル保存を行うページ"""
+        st.title("PDF Upload")
+        container = st.container()
+        with container:
+            pdf_retriever = PDFRetriever()
+            pdf_text = pdf_retriever.get_chunked_text()
+            if pdf_text:
+                with st.spinner("Loading PDF ..."):
+                    vector_store = QdrantVectorStore(
+                        qdrant_root=self.qdrant_root,
+                        collection_name=self.collection_name,
+                    )
+                    vector_store.save_pdf_text2vector_store(pdf_text)
+
+    def page_ask_my_pdf(self):
+        """GPTに質問を投げるページ"""
+        st.title("Ask My PDF(s)")
+        self.select_model()
+
+        container = st.container()
+        response_container = st.container()
+
+        with container:
+            # ベクトルDBの準備
+            vector_store = QdrantVectorStore(
+                qdrant_root=self.qdrant_root, collection_name=self.collection_name
+            )
+            answer = self.prompt2answer(vector_store)
+            if answer:
+                with response_container:
+                    self.print_answer(answer)
