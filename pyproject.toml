@@ -2,7 +2,7 @@
 name = "gpt-app-learn"
 version = "0.1.0"
 description = ""
-authors = ["Atsushi Yoshida <aug7.a.yoshida@gmail.com>"]
+authors = ["aug7atsushi"]
 readme = "README.md"
 packages = [{include = "gpt_app_learn", from="src"}]
 
